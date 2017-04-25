@@ -30,6 +30,9 @@ public class SQLLiteHandler extends SQLiteOpenHelper {
     private static final String KEY_EMAIL = "email";
     private static final String KEY_UID = "uid";
     private static final String KEY_CREATED_AT = "created_at";
+
+    private static final String KEY_SECRET = "secret_key";
+
     public SQLLiteHandler(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -56,7 +59,7 @@ public class SQLLiteHandler extends SQLiteOpenHelper {
         onCreate(sqLiteDatabase);
     }
 
-    public void addUser(String name, String email, String uid, String created_at) {
+    public void addUser(String name, String email, String uid, String created_at,String secret_key) {
         SQLiteDatabase db=this.getWritableDatabase();
 
         ContentValues values = new ContentValues();
@@ -64,6 +67,7 @@ public class SQLLiteHandler extends SQLiteOpenHelper {
         values.put(KEY_EMAIL,email);
         values.put(KEY_UID, uid); // Email
         values.put(KEY_CREATED_AT, created_at); // Created At
+        values.put(KEY_SECRET,secret_key);
 
         long id = db.insert(TABLE_USER,null,values);
         db.close();

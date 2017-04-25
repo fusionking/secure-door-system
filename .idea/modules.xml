@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/SecureDoor.iml" filepath="$PROJECT_DIR$/SecureDoor.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/secure-door-system.iml" filepath="$PROJECT_DIR$/secure-door-system.iml" />
     </modules>
   </component>
 </project>
