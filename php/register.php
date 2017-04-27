@@ -12,6 +12,9 @@ if (isset($_POST['name']) && isset($_POST['email']) && isset($_POST['password'])
     $name = $_POST['name'];
     $email = $_POST['email'];
     $password = $_POST['password'];
+
+    //20.4.2017
+    $secret_key = $_POST['secret_key'];
  
     // check if user is already existed with the same email
     if ($db->isUserExisted($email)) {
@@ -21,7 +24,7 @@ if (isset($_POST['name']) && isset($_POST['email']) && isset($_POST['password'])
         echo json_encode($response);
     } else {
         // create a new user
-        $user = $db->storeUser($name, $email, $password);
+        $user = $db->storeUser($name, $email, $password,$secret_key);
         if ($user) {
             // user stored successfully
             $response["error"] = FALSE;
@@ -30,6 +33,7 @@ if (isset($_POST['name']) && isset($_POST['email']) && isset($_POST['password'])
             $response["user"]["email"] = $user["email"];
             $response["user"]["created_at"] = $user["created_at"];
             $response["user"]["updated_at"] = $user["updated_at"];
+            $response["user"]["secret_key"] = $user["secret_key"];
             echo json_encode($response);
         } else {
             // user failed to store

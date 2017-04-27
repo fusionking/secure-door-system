@@ -1,4 +1,4 @@
-<?php
++<?php
  
 /**
  * @author Ravi Tamada
@@ -26,14 +26,17 @@ class DB_Functions {
      * Storing new user
      * returns user details
      */
-    public function storeUser($name, $email, $password) {
+    public function storeUser($name, $email, $password,$secret_key) {
         $uuid = uniqid('', true);
+        //$secretKey = $name + $password;  //Secret key shared between the client and the server
+        //$uuid = hash_hmac('md5', $input, $secretKey);
+
         $hash = $this->bcrypt($password);
         $encrypted_password = $hash["encrypted"]; // encrypted password
         $salt = $hash["salt"]; // salt
  
-        $stmt = $this->conn->prepare("INSERT INTO users(unique_id, name, email, encrypted_password, salt, created_at) VALUES(?, ?, ?, ?, ?, NOW())");
-        $stmt->bind_param("sssss", $uuid, $name, $email, $encrypted_password, $salt);
+        $stmt = $this->conn->prepare("INSERT INTO users(unique_id, name, email, encrypted_password, salt, created_at,secret_key) VALUES(?, ?, ?, ?, ?, NOW(),?)");
+        $stmt->bind_param("ssssss", $uuid, $name, $email, $encrypted_password, $salt,$secret_key);
         $result = $stmt->execute();
         $stmt->close();
  
@@ -65,12 +68,26 @@ class DB_Functions {
             $stmt->close();
  
             // verifying user password
-            $salt = $user['salt'];
-            $encrypted_password = $user['encrypted_password'];
-            $hash = $this->checkhashSSHA($salt, $password);
+            $user_salt = $user["salt"];
+            //$encrypted_password = verifyPassword($password,$user_salt);
+             $i = 22;
+        $crypto_strong = true;
+        
+        $options = [
+           'cost' => 11,
+           'salt' => $user_salt,
+                   ];
+        $encrypted = password_hash($password, PASSWORD_BCRYPT, $options);
+        $hash = array("salt" => $user_salt, "encrypted" => $encrypted);
+        
+        $encrypted_password = $hash["encrypted"];
+        
+
+            $user_password = $user["encrypted_password"];
             // check for password equality
-            if ($encrypted_password == $hash) {
+            if ($encrypted_password == $user_password) {
                 // user authentication details are correct
+                echo "Successful login! Geeva Flava!";
                 return $user;
             }
         } else {
@@ -99,7 +116,7 @@ class DB_Functions {
             $stmt->close();
             return false;
         }
-    }
+    } 
  
     //TO DO:12.4.2017
     public function bcrypt($password){
@@ -113,29 +130,30 @@ class DB_Functions {
                    ];
         $encrypted = password_hash($password, PASSWORD_BCRYPT, $options);
         $hash = array("salt" => $salt, "encrypted" => $encrypted);
+        echo "The computed salt value by bcrypt " + $salt;
         return $hash;
     }
     
     //TO DO:12.4.2017
-    public function verify_bcrypt($password,$hash,$salt){
+    public function verifyPassword($password,$user_salt){
         
-       
-        /*TO DO 12.4.2017  Decrypt the password sent to the server by the Android Client (bcrypt,sha or any other decryption algorithm)**/
-        //Apply bcrypt encryption to the obtained password
-        $decrypted_password = $password; //TO DO: Change
+        $i = 22;
+        $crypto_strong = true;
+        $salt = $user["salt"];
         $options = [
            'cost' => 11,
            'salt' => $salt,
                    ];
-        $encrypted = password_hash($decrypted_password, PASSWORD_BCRYPT, $options);
-
-        if (password_verify($encrypted, $hash)) {
-             echo 'Password is valid!';
-           } 
-        else {
-            echo 'Invalid password.';
-             }
+        $encrypted = password_hash($password, PASSWORD_BCRYPT, $options);
+        $hash = array("salt" => $salt, "encrypted" => $encrypted);
+        
+        $encrypted_password = $hash["encrypted"];
+        
+        return $encrypted_password;
     }
+
+
+
     /**
      * Encrypting password
      * @param password
