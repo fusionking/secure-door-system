@@ -3,19 +3,28 @@ package com.geevaflava.securedoor;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import java.io.ByteArrayOutputStream;
+import com.android.volley.Request;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+
+import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import java.security.SignatureException;
+import java.util.Formatter;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
+import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 import helper.SQLLiteHandler;
@@ -35,11 +44,25 @@ public class LoginActivity extends Activity {
 
     private static char[] PASSWORD = "".toCharArray();
     private static String user_password = "";
+    private static String email = "";
+
+    /**26.4.2017 HMAC VARIABLES****/
+    private String secret_key = "";
+    private byte[] message;
+    private String messageText;
+    private String macText;
+    private String MAC_AND_MESSAGE_TEXT = "";
+
+    private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
+    private String PREF_KEY_NAME = "";
+
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
+
+
 
         inputEmail = (EditText) findViewById(R.id.email);
         inputPassword = (EditText) findViewById(R.id.password);
@@ -68,39 +91,35 @@ public class LoginActivity extends Activity {
         btnLogin.setOnClickListener(new View.OnClickListener() {
 
             public void onClick(View view) {
-                String email = inputEmail.getText().toString().trim();
+                email = inputEmail.getText().toString().trim();
                 user_password = inputPassword.getText().toString().trim();
+
+                /**Access SharedPreferences to get the secret client key 26.4.2017*/
+                PREF_KEY_NAME = email;
+                SharedPreferences sp = getSharedPreferences("your_prefs", Activity.MODE_PRIVATE);
+                secret_key = sp.getString(PREF_KEY_NAME,"");
+                System.out.println("Client side secret key: " + secret_key);
 
                 // Check for empty data in the form
                 if (!email.isEmpty() && !user_password.isEmpty()) {
                     // login user
 
                     //***TO DO 12.4.2017: HTTPS connection with server logic + encryption process of the password****////
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    byte[] b = baos.toByteArray();
-                    byte[] keyStart = user_password.getBytes();
-                    KeyGenerator kgen = null;
+                     message = calculateMessage();
+                     messageText = new String(message);
+                     System.out.println("Message string on client" + messageText);
                     try {
-                        kgen = KeyGenerator.getInstance("AES");
+                        macText = calculateRFC2104HMAC(messageText,secret_key);
+                    } catch (SignatureException e) {
+                        e.printStackTrace();
                     } catch (NoSuchAlgorithmException e) {
                         e.printStackTrace();
-                    }
-                    SecureRandom sr = null;
-                    try {
-                        sr = SecureRandom.getInstance("SHA1PRNG");
-                    } catch (NoSuchAlgorithmException e) {
+                    } catch (InvalidKeyException e) {
                         e.printStackTrace();
                     }
-                    sr.setSeed(keyStart);
-                    kgen.init(128, sr); // 192 and 256 bits may not be available
-                    SecretKey skey = kgen.generateKey();
-                    byte[] key = skey.getEncoded();
 
-                    try {
-                        byte[] encryptedData = encrypt(key,b);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    MAC_AND_MESSAGE_TEXT = messageText+macText;
+                    System.out.println("Message concatanated " + MAC_AND_MESSAGE_TEXT);
                     //************************************//
                     checkLogin(email, user_password);
                 } else {
@@ -126,36 +145,95 @@ public class LoginActivity extends Activity {
 
     }
 
+
+    private static String toHexString(byte[] bytes) {
+        Formatter formatter = new Formatter();
+
+        for (byte b : bytes) {
+            formatter.format("%02x", b);
+        }
+
+        return formatter.toString();
+    }
+
+    public static String calculateRFC2104HMAC(String data, String key)
+            throws SignatureException, NoSuchAlgorithmException, InvalidKeyException
+    {
+        SecretKeySpec signingKey = new SecretKeySpec(key.getBytes(), HMAC_SHA1_ALGORITHM);
+        Mac mac = Mac.getInstance(HMAC_SHA1_ALGORITHM);
+        mac.init(signingKey);
+        System.out.println("Hex string mac on client: " + toHexString(mac.doFinal(data.getBytes())));
+        String mcT = new String(mac.doFinal(data.getBytes()));
+        System.out.print("Pure String mac on client" + mcT);
+        return toHexString(mac.doFinal(data.getBytes()));
+    }
+
+    private byte[] calculateMessage()
+    {
+        /*ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        byte[] encryptedData = new byte[100];
+        byte[] b = baos.toByteArray();
+        byte[] keyStart = user_password.getBytes();
+        KeyGenerator kgen = null;
+        try {
+            kgen = KeyGenerator.getInstance("AES");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        SecureRandom sr = null;
+        try {
+            sr = SecureRandom.getInstance("SHA1PRNG");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        sr.setSeed(keyStart);
+        kgen.init(128, sr); // 192 and 256 bits may not be available
+        SecretKey skey = kgen.generateKey();
+        byte[] key = skey.getEncoded();
+
+        try {
+            encryptedData = encrypt(key,b);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return encryptedData;
+        */
+        String randomMessage = "101";
+        byte[] rnd = randomMessage.getBytes();
+        return rnd;
+    }
     /**
      * function to verify login details in mysql db
      * */
     private void checkLogin(final String email, final String password) {
         // Tag used to cancel the request
-        /*String tag_string_req = "req_login";
+        String tag_string_req = "req_login";
 
         pDialog.setMessage("Logging in ...");
         showDialog();
 
-        StringRequest strReq = new StringRequest(Method.POST,
+        StringRequest strReq = new StringRequest(Request.Method.POST,
                 AppConfig.URL_LOGIN, new Response.Listener<String>() {
 
             @Override
             public void onResponse(String response) {
-                Log.d(TAG, "Login Response: " + response.toString());
+                Log.d(TAG, "Login Response: " + response);
                 hideDialog();
 
-                try {
-                    JSONObject jObj = new JSONObject(response);
-                    boolean error = jObj.getBoolean("error");
+                //try {
+                    //JSONObject jObj = new JSONObject(response);
+                    //boolean error = jObj.getBoolean("error");
 
                     // Check for error node in json
+                    boolean error = false;
                     if (!error) {
                         // user successfully logged in
                         // Create login session
                         session.setLogin(true);
 
                         // Now store the user in SQLite
-                        String uid = jObj.getString("uid");
+                       /* String uid = jObj.getString("uid");
 
                         JSONObject user = jObj.getJSONObject("user");
                         String name = user.getString("name");
@@ -164,24 +242,25 @@ public class LoginActivity extends Activity {
                                 .getString("created_at");
 
                         // Inserting row in users table
-                        db.addUser(name, email, uid, created_at,secret_key);
+                        db.addUser(name, email, uid, created_at,secret_key);*/
 
                         // Launch main activity
                         Intent intent = new Intent(LoginActivity.this,
                                 HomeActivity.class );
+                        intent.putExtra("user email", email);
                         startActivity(intent);
                         finish();
                     } else {
                         // Error in login. Get the error message
-                        String errorMsg = jObj.getString("error_msg");
-                        Toast.makeText(getApplicationContext(),
-                                errorMsg, Toast.LENGTH_LONG).show();
+                        //String errorMsg = jObj.getString("error_msg");
+                        //Toast.makeText(getApplicationContext(),
+                                //errorMsg, Toast.LENGTH_LONG).show();
                     }
-                } catch (JSONException e) {
+                //} catch (JSONException e) {
                     // JSON error
-                    e.printStackTrace();
-                    Toast.makeText(getApplicationContext(), "Json error: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                }
+                  //  e.printStackTrace();
+                   // Toast.makeText(getApplicationContext(), "Json error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                //}
 
             }
         }, new Response.ErrorListener() {
@@ -201,6 +280,7 @@ public class LoginActivity extends Activity {
                 Map<String, String> params = new HashMap<String, String>();
                 params.put("email", email);
                 params.put("password", password);
+                params.put("messageAndMac",MAC_AND_MESSAGE_TEXT);
 
                 return params;
             }
@@ -208,7 +288,7 @@ public class LoginActivity extends Activity {
         };
 
         // Adding request to request queue
-        AppController.getInstance().addToRequestQueue(strReq, tag_string_req);*/
+        AppController.getInstance().addToRequestQueue(strReq, tag_string_req);
     }
 
     private void showDialog() {

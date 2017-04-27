@@ -18,8 +18,11 @@ public class HomeActivity extends Activity {
     private TextView txtEmail;
     private Button btnLogout;
 
+    private String user_email;
+
     private SQLLiteHandler db;
     private SessionManager session;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,12 +43,26 @@ public class HomeActivity extends Activity {
             logoutUser();
         }
 
+
+        if (savedInstanceState == null) {
+            Bundle extras = getIntent().getExtras();
+            if(extras == null) {
+                user_email= null;
+            } else {
+                user_email= extras.getString("user email");
+            }
+        } else {
+            user_email= (String) savedInstanceState.getSerializable("user email");
+        }
+
+
         // Fetching user details from sqlite
         HashMap<String, String> user = db.getUserDetails();
 
         String name = user.get("name");
         String email = user.get("email");
 
+        System.out.println("Users name: " + name);
         // Displaying the user details on the screen
         txtName.setText(name);
         txtEmail.setText(email);

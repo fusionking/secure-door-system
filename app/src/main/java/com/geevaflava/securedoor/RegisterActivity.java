@@ -3,6 +3,7 @@ package com.geevaflava.securedoor;
 import android.app.Activity;
 import android.app.ProgressDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -69,6 +70,8 @@ public class RegisterActivity extends Activity {
     private static final String AES_MODE = "AES/GCM/NoPadding";
     private static String KEY_ALIAS = "";
 
+    private String PREF_KEY_NAME = "";
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -110,6 +113,8 @@ public class RegisterActivity extends Activity {
                 //25.4.2017 Calculate client salt
                 try {
                     secret_key = encryptedKey(password);
+
+
                 } catch (NoSuchAlgorithmException e) {
                     e.printStackTrace();
                 } catch (InvalidKeySpecException e) {
@@ -144,6 +149,13 @@ public class RegisterActivity extends Activity {
             public void onClick(View view) {
                 Intent i = new Intent(getApplicationContext(),
                         LoginActivity.class);
+                /**26.4.2017 Store the encrypted c(key+password) == user key in SharedPreferences*/
+                PREF_KEY_NAME = email;
+                SharedPreferences sp = getSharedPreferences("your_prefs", Activity.MODE_PRIVATE);
+                SharedPreferences.Editor editor = sp.edit();
+                editor.putString(PREF_KEY_NAME,secret_key);
+                editor.apply();
+
                 startActivity(i);
                 finish();
             }
