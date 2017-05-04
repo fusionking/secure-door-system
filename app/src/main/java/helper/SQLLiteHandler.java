@@ -7,6 +7,10 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.util.HashMap;
 
 
@@ -99,10 +103,49 @@ public class SQLLiteHandler extends SQLiteOpenHelper {
         return user;
     }
 
+    public String returnUID(String user_email)
+    {
+
+        String uid = "";
+        try
+        {
+            // create our mysql database connection
+            String myDriver = "org.gjt.mm.mysql.Driver";
+            String myUrl = "jdbc:mysql://localhost/secure_door";
+            Class.forName(myDriver);
+            Connection conn = DriverManager.getConnection(myUrl, "root", "");
+
+            // our SQL SELECT query.
+            // if you only need a few columns, specify them by name instead of using "*"
+            String query = "SELECT * FROM " + TABLE_USER + " WHERE email=" + "'"+user_email+"'";
+
+            // create the java statement
+            Statement st = conn.createStatement();
+
+            // execute the query, and get a java resultset
+            ResultSet rs = st.executeQuery(query);
+
+            // iterate through the java resultset
+            while (rs.next())
+            {
+                uid = rs.getString("uid");
+
+                // print the results
+                System.out.format("UID:" + uid);
+            }
+            st.close();
+        }
+        catch (Exception e)
+        {
+            System.err.println("Got an exception! ");
+            System.err.println(e.getMessage());
+        }
+        return uid;
+    }
 
     public HashMap<String, String> getUserByEmail(String user_email) {
         HashMap<String, String> user = new HashMap<String, String>();
-        String selectQuery = "SELECT * FROM " + TABLE_USER + " WHERE email = " + user_email;
+        String selectQuery = "SELECT * FROM " + TABLE_USER + " WHERE email=" + "'"+user_email+"'";
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery(selectQuery, null);
 // Move to first row

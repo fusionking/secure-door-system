@@ -16,7 +16,12 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SignatureException;
 import java.util.Formatter;
@@ -47,14 +52,17 @@ public class LoginActivity extends Activity {
     private static String email = "";
 
     /**26.4.2017 HMAC VARIABLES****/
-    private String secret_key = "";
+    public static String secret_key = "";
     private byte[] message;
     private String messageText;
-    private String macText;
-    private String MAC_AND_MESSAGE_TEXT = "";
+    public static String macText;
+    public static String MAC_AND_MESSAGE_TEXT="";
 
     private static final String HMAC_SHA1_ALGORITHM = "HmacSHA1";
     private String PREF_KEY_NAME = "";
+
+    public static String MD5_KEY_FOR_MAC ;
+    public static String challenge_response;
 
 
     @Override
@@ -104,24 +112,29 @@ public class LoginActivity extends Activity {
                 if (!email.isEmpty() && !user_password.isEmpty()) {
                     // login user
 
-                    //***TO DO 12.4.2017: HTTPS connection with server logic + encryption process of the password****////
-                     message = calculateMessage();
-                     messageText = new String(message);
-                     System.out.println("Message string on client" + messageText);
-                    try {
-                        macText = calculateRFC2104HMAC(messageText,secret_key);
-                    } catch (SignatureException e) {
-                        e.printStackTrace();
-                    } catch (NoSuchAlgorithmException e) {
-                        e.printStackTrace();
-                    } catch (InvalidKeyException e) {
-                        e.printStackTrace();
-                    }
+                    //28.4.2017
+                    sendAuthRequest();
 
-                    MAC_AND_MESSAGE_TEXT = messageText+macText;
-                    System.out.println("Message concatanated " + MAC_AND_MESSAGE_TEXT);
+                    //***TO DO 12.4.2017: HTTPS connection with server logic + encryption process of the password****////
+                     //message = calculateMessage();
+                     //messageText = new String(message);
+                     //System.out.println("Message string on client" + messageText);
+                    /*try {
+                        macText = calculateRFC2104HMAC(challenge_response,MD5_KEY_FOR_MAC);
+                        MAC_AND_MESSAGE_TEXT = challenge_response + macText;
+                    } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException e) {
+                        e.printStackTrace();
+                    }*/
+
+                    //MAC_AND_MESSAGE_TEXT = messageText+macText;
+                    //System.out.println("Message concatanated " + MAC_AND_MESSAGE_TEXT);
                     //************************************//
-                    checkLogin(email, user_password);
+                    //28.4.2017
+                    //sendAuthRequest();
+                    //System.out.println("MAC AND MESSAGE TEXT:" + MAC_AND_MESSAGE_TEXT);
+                    //System.out.println("Challenge Response:" + challenge_response);
+                    //System.out.println("MAC AND MESSAGE TEXT:" + MAC_AND_MESSAGE_TEXT);
+                    //checkLogin(email,user_password);
                 } else {
                     // Prompt user to enter credentials
                     Toast.makeText(getApplicationContext(),
@@ -164,7 +177,7 @@ public class LoginActivity extends Activity {
         mac.init(signingKey);
         System.out.println("Hex string mac on client: " + toHexString(mac.doFinal(data.getBytes())));
         String mcT = new String(mac.doFinal(data.getBytes()));
-        System.out.print("Pure String mac on client" + mcT);
+        //System.out.print("Pure String mac on client" + mcT);
         return toHexString(mac.doFinal(data.getBytes()));
     }
 
@@ -203,6 +216,108 @@ public class LoginActivity extends Activity {
         byte[] rnd = randomMessage.getBytes();
         return rnd;
     }
+    public void sendAuthRequest()
+    {
+        String tag_string_req = "auth_req";
+        System.out.println("Send auth request is called!");
+        pDialog.setMessage("Sending auth request ...");
+        showDialog();
+
+        StringRequest strReq = new StringRequest(Request.Method.POST,
+                AppConfig.URL_AUTH_RESPONSE, new Response.Listener<String>() {
+
+            @Override
+            public void onResponse(String response) {
+                Log.d(TAG, "Auth request Response: " + response);
+                hideDialog();
+
+                // TO DO: Check for error node in json 3.5.2017
+
+                /**3.5.2017 1)Get the challenge from the server
+                 *          2)Compute the MAC key with the hash of the password+ user secret key
+                 *          3)Compute the MAC with the challenge repsonse and key
+                 *          4)Concatanate the challenge response with the computed MAC
+                 *          5)Send it to login.php**/
+                JSONObject jObj = null;
+                try {
+                    jObj = new JSONObject(response);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+                try {
+                    challenge_response = jObj.getString("challenge");
+                    System.out.println("Challenge response:" + challenge_response);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+                byte[] bytesOfMessage = new byte[0];
+                try {
+                    String key_concat = user_password + secret_key;
+                    bytesOfMessage = key_concat.getBytes("UTF-8");
+
+                } catch (UnsupportedEncodingException e) {
+                    e.printStackTrace();
+                }
+
+                MessageDigest md = null;
+                try {
+                    md = MessageDigest.getInstance("MD5");
+                } catch (NoSuchAlgorithmException e) {
+                    e.printStackTrace();
+                }
+                byte[] thedigest = md.digest(bytesOfMessage);
+                MD5_KEY_FOR_MAC = toHexString(thedigest);
+                System.out.println("MD5 KEY FOR MAC:" + MD5_KEY_FOR_MAC);
+
+
+                try {
+                    macText = calculateRFC2104HMAC(challenge_response,MD5_KEY_FOR_MAC);
+                    MAC_AND_MESSAGE_TEXT = challenge_response + macText;
+                    System.out.println("Concat mac message:" + MAC_AND_MESSAGE_TEXT);
+
+                } catch (SignatureException | NoSuchAlgorithmException | InvalidKeyException e) {
+                    e.printStackTrace();
+                }
+
+                /**Send the message to login.php**/
+                checkLogin(email,user_password);
+
+            }
+        }, new Response.ErrorListener() {
+
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                Log.e(TAG, "Auth request Error: " + error.getMessage());
+                Toast.makeText(getApplicationContext(),
+                        error.getMessage(), Toast.LENGTH_LONG).show();
+                hideDialog();
+            }
+        }) {
+
+            @Override
+            protected Map<String, String> getParams() {
+                // Posting parameters to login url
+                Map<String, String> params = new HashMap<String, String>();
+                // Fetching user details from sqlite
+
+               // HashMap<String, String> user = db.getUserByEmail(email);
+                //String uid = user.get("uid");
+                //String uid= db.returnUID(email);
+                //String authRequest = "101"+uid;
+                String authRequest = "101";
+                params.put("auth_request",authRequest);
+
+                return params;
+            }
+
+        };
+
+        // Adding request to request queue
+        AppController.getInstance().addToRequestQueue(strReq, tag_string_req);
+    }
+
     /**
      * function to verify login details in mysql db
      * */
