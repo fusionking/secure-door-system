@@ -5,8 +5,29 @@ $db = new DB_Functions();
  
 // json response array
 $response = array("error" => FALSE);
+
+
+//authentication request response
+/*if(isset($_POST['auth']))
+{
+    echo "Auth request received!";
+    $auth_request = $_POST["auth_request"];
+    echo "This is the auth request:".$auth_request;
+    $auth_code = substr($auth_request,0,3);
+    $uid = substr($auth_request,3);
+
+    if($auth_code == "101")
+    {
+        $challenge = random_bytes(16);
+        echo "Challenge sent by server: " . $challenge;
+        $response["challenge"] = $challenge;
+        echo json_encode($response);
+
+    }
+
+}*/
  
-if (isset($_POST['email']) && isset($_POST['password'])) {
+if (isset($_POST['email']) && isset($_POST['password']) && isset($_POST['messageAndMac'])) {
  
     // receiving the post params
     $email = $_POST['email'];
@@ -14,14 +35,13 @@ if (isset($_POST['email']) && isset($_POST['password'])) {
  
     //26.4.2017 get the concatanated Message+MAC
     $messageAndMac = $_POST['messageAndMac'];
-    echo "Message received by server: " . $messageAndMac;
+    echo "Message received by server: " . $messageAndMac ."\n";
 
     // get the user by email and password
     $user = $db->getUserByEmailAndPassword($email, $password);
  
     if ($user != false) {
         // use is found
-        echo "User found GEEVA";
         //$response["error"] = FALSE;
         $response["uid"] = $user["unique_id"];
         $response["user"]["name"] = $user["name"];
@@ -30,13 +50,16 @@ if (isset($_POST['email']) && isset($_POST['password'])) {
         $response["user"]["updated_at"] = $user["updated_at"];
 
         //26.4.2017 MAC Logic
-        $macText = substr($messageAndMac,3);
-        $messageText = substr($messageAndMac,0,3);
-        echo "message text: " . $messageText;
-        echo "user secret key: " . $user["secret_key"];
-        $mac = hash_hmac('sha1', $messageText, $user["secret_key"]);
+        $macText = substr($messageAndMac,32);
+        $messageText = substr($messageAndMac,0,32);
+        echo "challenge text: " . $messageText ."\n";
+        echo "user secret key: " . $user["secret_key"] ."\n";
 
-        echo "client side mac: " . $macText . " server side mac: " . $mac; 
+        $concat = $_POST['password'] . $user["secret_key"];
+        $keyForMac = md5($concat);
+        $mac = hash_hmac('sha1', $messageText, $keyForMac);
+
+        echo "client side mac: " . $macText . " server side mac: " . $mac ."\n"; 
 
         if($mac == $macText)
         {
